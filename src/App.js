@@ -513,8 +513,6 @@ export default function App() {
   const TABS = ALL_TABS.filter(t=>currentUser.tabs.includes(t.id));
 
   // ── Layout helpers ──
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
   return (
     <div style={{ minHeight:'100vh', background:'#0A0A0C', display:'flex', flexDirection:'column' }}>
       <style>{`
