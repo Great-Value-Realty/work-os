@@ -631,19 +631,6 @@ function TimelineView({selDay,setSelDay,scheduledTasks,logForDay,accuracy,doneRo
 
   return(
     <div>
-      {resetConfirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px"}}>
-          <div style={{background:T.modalBg,border:`1px solid ${T.modalBorder}`,borderRadius:20,padding:"28px 24px",width:"100%",maxWidth:360,textAlign:"center"}}>
-            <p style={{fontSize:28,margin:"0 0 8px"}}>🔄</p>
-            <p style={{margin:"0 0 6px",fontSize:16,fontWeight:600,color:T.text}}>New week?</p>
-            <p style={{margin:"0 0 24px",fontSize:13,color:T.textSub,lineHeight:1.5}}>This will reset all session counts to zero. Your activities stay — only the progress clears.</p>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setResetConfirm(false)} style={{flex:1,padding:"12px",borderRadius:12,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,fontSize:13,cursor:"pointer"}}>Cancel</button>
-              <button onClick={()=>{setUnwindItems(prev=>prev.map(i=>({...i,done:0})));setResetConfirm(false);}} style={{flex:2,padding:"12px",borderRadius:12,border:"none",background:"#50C8A8",color:"#000",fontSize:13,fontWeight:700,cursor:"pointer"}}>↺ Reset week</button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Day picker */}
       <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto",scrollbarWidth:"none"}}>
         {DAYS.map(d=>(
