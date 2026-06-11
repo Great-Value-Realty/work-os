@@ -174,32 +174,21 @@ const daysSince=d=>{if(!d)return null;return Math.floor((Date.now()-new Date(d).
 const agingColor=d=>{if(d===null)return"#999";if(d<=3)return"#4CAF50";if(d<=7)return"#F5A623";if(d<=14)return"#FF9944";return"#FF4D4D";};
 const uid=()=>"id_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
 
-// ─── SUPABASE SYNC (no-op when supabase is null / preview mode) ───────────────
+// ─── SUPABASE HELPERS ─────────────────────────────────────────────────────────
 const dbSync = {
-  async upsertTask(t) {
+  upsertTask: async (t) => {
     if (!supabase) return;
-    await supabase.from('tasks').upsert({
-      id:t.id, list:t.list, text:t.text, update_note:t.update||'',
-      delegate:t.delegate||'', status:t.status||'todo', bci:t.bci||'schedule',
-      starred:t.starred||false, follow_up:t.followUp||false,
-      next_follow_up:t.nextFollowUp||'', day:t.day||'', time:t.time||'',
-      follow_up_count:t.followUpCount||0, created_at:t.createdAt||new Date().toISOString(),
-      updated_at:new Date().toISOString(),
-    });
+    await supabase.from('tasks').upsert({ id:t.id,list:t.list,text:t.text,update_note:t.update||'',delegate:t.delegate||'',status:t.status||'todo',bci:t.bci||'schedule',starred:!!t.starred,follow_up:!!t.followUp,next_follow_up:t.nextFollowUp||'',day:t.day||'',time:t.time||'',follow_up_count:t.followUpCount||0,created_at:t.createdAt||new Date().toISOString(),updated_at:new Date().toISOString() });
   },
-  async deleteTask(id) { if (!supabase) return; await supabase.from('tasks').delete().eq('id',id); },
-  async upsertApproval(a) {
-    if (!supabase) return;
-    await supabase.from('approvals').upsert({ id:a.id, text:a.text, delegate:a.delegate||'', update_note:a.update||'', from_list:a.fromList, approved_at:new Date().toISOString() });
-  },
-  async deleteApproval(id) { if (!supabase) return; await supabase.from('approvals').delete().eq('id',id); },
-  async addCapture(item) { if (!supabase) return; await supabase.from('quick_capture').insert({ id:item.id, text:item.text }); },
-  async deleteCapture(id) { if (!supabase) return; await supabase.from('quick_capture').delete().eq('id',id); },
+  deleteTask: async (id) => { if (supabase) await supabase.from('tasks').delete().eq('id',id); },
+  upsertApproval: async (a) => { if (!supabase) return; await supabase.from('approvals').upsert({ id:a.id,text:a.text,delegate:a.delegate||'',update_note:a.update||'',from_list:a.fromList,approved_at:new Date().toISOString() }); },
+  deleteApproval: async (id) => { if (supabase) await supabase.from('approvals').delete().eq('id',id); },
+  addCapture: async (item) => { if (supabase) await supabase.from('quick_capture').insert({ id:item.id,text:item.text }); },
+  deleteCapture: async (id) => { if (supabase) await supabase.from('quick_capture').delete().eq('id',id); },
 };
-
-const rowToTask = r => ({ id:r.id, list:r.list, text:r.text, update:r.update_note, delegate:r.delegate, status:r.status, bci:r.bci, starred:r.starred, followUp:r.follow_up, nextFollowUp:r.next_follow_up, day:r.day, time:r.time, followUpCount:r.follow_up_count||0, createdAt:r.created_at });
-const rowToApproval = r => ({ id:r.id, text:r.text, delegate:r.delegate, update:r.update_note, fromList:r.from_list });
-const rowToCapture  = r => ({ id:r.id, text:r.text, ts:new Date(r.created_at).getTime() });
+const rowToTask = r => ({ id:r.id,list:r.list,text:r.text,update:r.update_note,delegate:r.delegate,status:r.status,bci:r.bci,starred:r.starred,followUp:r.follow_up,nextFollowUp:r.next_follow_up,day:r.day,time:r.time,followUpCount:r.follow_up_count||0,createdAt:r.created_at });
+const rowToApproval = r => ({ id:r.id,text:r.text,delegate:r.delegate,update:r.update_note,fromList:r.from_list });
+const rowToCapture  = r => ({ id:r.id,text:r.text,ts:new Date(r.created_at).getTime() });
 
 const fmtTime=t=>{if(!t)return"";const[h,m]=t.split(":").map(Number);return`${h%12||12}:${String(m).padStart(2,"0")}${h>=12?"pm":"am"}`;};
 
@@ -2168,6 +2157,264 @@ function VarshaRecurring(){
 }
 
 
+
+// ─── DATA PANEL (Export / Import) ────────────────────────────────────────────
+function DataPanel({tasks,setTasks,onClose}){
+  const T=useT();
+  const [mode,setMode]=useState("export"); // "export" | "import"
+  const [importing,setImporting]=useState(false);
+  const [importResult,setImportResult]=useState(null);
+  const [error,setError]=useState("");
+
+  // ── EXPORT ──
+  const exportToExcel=()=>{
+    const XLSX=window.XLSX;
+    if(!XLSX){setError("Excel library not loaded. Check internet connection.");return;}
+
+    const wb=XLSX.utils.book_new();
+
+    // Sheet 1: My Tasks
+    const todoRows=tasks.filter(t=>t.list==="todo").map(t=>({
+      ID:t.id, Task:t.text, Bucket:t.bci, Status:t.status,
+      Delegate:t.delegate||"", Update:t.update||"",
+      FollowUp:t.followUp?"Yes":"No", NextFollowUpDate:t.nextFollowUp||"",
+      Day:t.day||"", Time:t.time||"", FollowUpCount:t.followUpCount||0,
+      CreatedAt:t.createdAt||"", Starred:t.starred?"Yes":"No",
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(todoRows.length?todoRows:[{Task:"No tasks"}]), "My Tasks");
+
+    // Sheet 2: EA List
+    const eaRows=tasks.filter(t=>t.list==="ea").map(t=>({
+      ID:t.id, Task:t.text, Status:t.status,
+      Delegate:t.delegate||"", Update:t.update||"",
+      NextFollowUpDate:t.nextFollowUp||"", FollowUpCount:t.followUpCount||0,
+      CreatedAt:t.createdAt||"",
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eaRows.length?eaRows:[{Task:"No tasks"}]), "EA List");
+
+    // Sheet 3: Delegation
+    const delRows=tasks.filter(t=>t.list==="del").map(t=>({
+      ID:t.id, Task:t.text, Delegate:t.delegate||"",
+      Phone:t.phone||"", Status:t.status,
+      Starred:t.starred?"Yes":"No", Update:t.update||"",
+      NextFollowUpDate:t.nextFollowUp||"", FollowUpCount:t.followUpCount||0,
+      CreatedAt:t.createdAt||"",
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(delRows.length?delRows:[{Task:"No tasks"}]), "Delegation");
+
+    // Sheet 4: All (for reference / editing template)
+    const allRows=tasks.map(t=>({
+      ID:t.id, List:t.list, Task:t.text, Bucket:t.bci, Status:t.status,
+      Delegate:t.delegate||"", Phone:t.phone||"", Update:t.update||"",
+      FollowUp:t.followUp?"Yes":"No", NextFollowUpDate:t.nextFollowUp||"",
+      Day:t.day||"", Time:t.time||"", FollowUpCount:t.followUpCount||0,
+      Starred:t.starred?"Yes":"No", CreatedAt:t.createdAt||"",
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allRows.length?allRows:[{Task:"No tasks"}]), "All Tasks");
+
+    XLSX.writeFile(wb, `WorkOS_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  // ── IMPORT ──
+  const handleFile=e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    const XLSX=window.XLSX;
+    if(!XLSX){setError("Excel library not loaded.");return;}
+    setImporting(true);setError("");setImportResult(null);
+
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:"array"});
+        const allSheet=wb.Sheets["All Tasks"];
+        if(!allSheet){
+          // Try reading each sheet separately
+          const newTasks=[];
+          const listMap={"My Tasks":"todo","EA List":"ea","Delegation":"del"};
+          ["My Tasks","EA List","Delegation"].forEach(sheetName=>{
+            const sh=wb.Sheets[sheetName];
+            if(!sh)return;
+            const rows=XLSX.utils.sheet_to_json(sh);
+            rows.forEach(row=>{
+              if(!row.Task||row.Task==="No tasks")return;
+              newTasks.push({
+                id:row.ID||uid(),
+                list:listMap[sheetName]||"todo",
+                text:String(row.Task||""),
+                bci:row.Bucket||"schedule",
+                status:row.Status||"todo",
+                delegate:String(row.Delegate||""),
+                phone:String(row.Phone||""),
+                update:String(row.Update||""),
+                followUp:row.FollowUp==="Yes",
+                nextFollowUp:String(row.NextFollowUpDate||""),
+                day:String(row.Day||""),
+                time:String(row.Time||""),
+                followUpCount:Number(row.FollowUpCount)||0,
+                starred:row.Starred==="Yes",
+                createdAt:String(row.CreatedAt||new Date().toISOString()),
+              });
+            });
+          });
+          setImportResult({count:newTasks.length,tasks:newTasks});
+        } else {
+          // Use All Tasks sheet (most complete)
+          const rows=XLSX.utils.sheet_to_json(allSheet);
+          const newTasks=rows.filter(r=>r.Task&&r.Task!=="No tasks").map(row=>({
+            id:row.ID||uid(),
+            list:row.List||"todo",
+            text:String(row.Task||""),
+            bci:row.Bucket||"schedule",
+            status:row.Status||"todo",
+            delegate:String(row.Delegate||""),
+            phone:String(row.Phone||""),
+            update:String(row.Update||""),
+            followUp:row.FollowUp==="Yes",
+            nextFollowUp:String(row.NextFollowUpDate||""),
+            day:String(row.Day||""),
+            time:String(row.Time||""),
+            followUpCount:Number(row.FollowUpCount)||0,
+            starred:row.Starred==="Yes",
+            createdAt:String(row.CreatedAt||new Date().toISOString()),
+          }));
+          setImportResult({count:newTasks.length,tasks:newTasks});
+        }
+      }catch(err){
+        setError("Could not read file: "+err.message);
+      }
+      setImporting(false);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value=""; // reset input
+  };
+
+  const confirmImport=()=>{
+    if(!importResult)return;
+    setTasks(importResult.tasks);
+    setImportResult(null);
+    onClose();
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      {/* Load SheetJS from CDN */}
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"/>
+      <div style={{width:"100%",maxWidth:540,background:T.modalBg,borderRadius:"20px 20px 0 0",border:`1px solid ${T.modalBorder}`,maxHeight:"88vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+        {/* Header */}
+        <div style={{padding:"20px 20px 0",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div>
+            <p style={{margin:0,fontSize:10,color:"#F5A623",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:2}}>Data Manager</p>
+            <p style={{margin:"2px 0 0",fontSize:17,fontWeight:600,color:T.textHeading}}>Export / Import</p>
+          </div>
+          <button onClick={onClose} style={{background:T.bgPanel,border:`1px solid ${T.border}`,borderRadius:10,padding:"6px 12px",color:T.textMuted,fontSize:13,cursor:"pointer"}}>✕ Close</button>
+        </div>
+
+        {/* Mode tabs */}
+        <div style={{display:"flex",gap:8,padding:"16px 20px 0",flexShrink:0}}>
+          {[{id:"export",icon:"⬇",label:"Export to Excel"},{id:"import",icon:"⬆",label:"Import from Excel"}].map(m=>(
+            <button key={m.id} onClick={()=>{setMode(m.id);setImportResult(null);setError("");}} style={{flex:1,padding:"10px",borderRadius:12,border:"none",cursor:"pointer",background:mode===m.id?"rgba(245,166,35,0.15)":T.bgPanel,color:mode===m.id?"#F5A623":T.textMuted,fontSize:13,fontWeight:mode===m.id?600:400,outline:mode===m.id?"1.5px solid rgba(245,166,35,0.4)":"none",transition:"all 0.15s"}}>
+              <span style={{marginRight:6}}>{m.icon}</span>{m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{padding:"16px 20px 32px",overflowY:"auto"}}>
+
+          {mode==="export"&&(
+            <div>
+              <div style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:13,padding:"14px 16px",marginBottom:14}}>
+                <p style={{margin:"0 0 8px",fontSize:13,color:T.text,fontWeight:500}}>What gets exported</p>
+                {[
+                  {sheet:"My Tasks",desc:`${tasks.filter(t=>t.list==="todo").length} tasks — schedule, waiting, someday`},
+                  {sheet:"EA List",desc:`${tasks.filter(t=>t.list==="ea").length} tasks — all EA items`},
+                  {sheet:"Delegation",desc:`${tasks.filter(t=>t.list==="del").length} tasks — all delegated items with phone numbers`},
+                  {sheet:"All Tasks",desc:"Combined sheet — edit this one for reimport"},
+                ].map(s=>(
+                  <div key={s.sheet} style={{display:"flex",gap:10,alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.borderSub}`}}>
+                    <span style={{fontSize:11,fontWeight:600,color:"#50C8A8",fontFamily:"'DM Mono',monospace",minWidth:90}}>{s.sheet}</span>
+                    <span style={{fontSize:12,color:T.textSub}}>{s.desc}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:"rgba(245,166,35,0.07)",border:"1px solid rgba(245,166,35,0.2)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+                <p style={{margin:"0 0 4px",fontSize:12,color:"#F5A623",fontWeight:500}}>💡 Editing tip</p>
+                <p style={{margin:0,fontSize:12,color:T.textSub,lineHeight:1.5}}>Edit the <strong style={{color:T.text}}>"All Tasks"</strong> sheet — it has every field. When importing back, the app reads that sheet first. Don't change the column headers.</p>
+              </div>
+              <button onClick={exportToExcel} style={{width:"100%",padding:"14px",borderRadius:13,border:"none",background:"#F5A623",color:"#000",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                ⬇ Download Excel
+              </button>
+            </div>
+          )}
+
+          {mode==="import"&&(
+            <div>
+              {!importResult?(
+                <>
+                  <div style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:13,padding:"14px 16px",marginBottom:14}}>
+                    <p style={{margin:"0 0 8px",fontSize:13,color:T.text,fontWeight:500}}>Import rules</p>
+                    {[
+                      "Export first, edit the file, then import back",
+                      "Use the 'All Tasks' sheet — it has all fields",
+                      "Don't rename or remove column headers",
+                      "List column: use todo, ea, or del",
+                      "Bucket column: schedule, waiting, or someday",
+                      "Import replaces all current tasks",
+                    ].map((r,i)=>(
+                      <div key={i} style={{display:"flex",gap:8,padding:"5px 0",borderBottom:i<5?`1px solid ${T.borderSub}`:"none"}}>
+                        <span style={{fontSize:11,color:"#9B8AFF",fontFamily:"'DM Mono',monospace",minWidth:16}}>{i+1}.</span>
+                        <span style={{fontSize:12,color:T.textSub}}>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {error&&<p style={{fontSize:12,color:"#FF7A7A",margin:"0 0 12px",padding:"8px 12px",background:"rgba(255,77,77,0.08)",borderRadius:8}}>{error}</p>}
+                  <label style={{display:"block",width:"100%",padding:"36px 20px",borderRadius:13,border:`2px dashed ${T.border}`,background:T.bgPanel,textAlign:"center",cursor:"pointer",transition:"all 0.2s"}}>
+                    <input type="file" accept=".xlsx,.xls" onChange={handleFile} style={{display:"none"}}/>
+                    <p style={{margin:"0 0 6px",fontSize:28}}>{importing?"⏳":"📂"}</p>
+                    <p style={{margin:0,fontSize:14,color:T.text,fontWeight:500}}>{importing?"Reading file…":"Tap to choose Excel file"}</p>
+                    <p style={{margin:"4px 0 0",fontSize:11,color:T.textMuted}}>.xlsx or .xls</p>
+                  </label>
+                </>
+              ):(
+                <div>
+                  <div style={{background:"rgba(76,175,80,0.07)",border:"1px solid rgba(76,175,80,0.25)",borderRadius:13,padding:"16px",marginBottom:14,textAlign:"center"}}>
+                    <p style={{margin:"0 0 4px",fontSize:26}}>✓</p>
+                    <p style={{margin:"0 0 4px",fontSize:15,fontWeight:600,color:"#4CAF50"}}>File read successfully</p>
+                    <p style={{margin:0,fontSize:13,color:T.textSub}}>{importResult.count} tasks found</p>
+                  </div>
+                  <div style={{display:"flex",gap:8,marginBottom:10}}>
+                    {[
+                      {list:"todo",label:"My Tasks",color:"#F5A623"},
+                      {list:"ea",  label:"EA List", color:"#4A9EFF"},
+                      {list:"del", label:"Delegated",color:"#9B8AFF"},
+                    ].map(l=>{
+                      const n=importResult.tasks.filter(t=>t.list===l.list).length;
+                      return(
+                        <div key={l.list} style={{flex:1,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 8px",textAlign:"center"}}>
+                          <p style={{margin:0,fontSize:18,fontWeight:700,color:l.color,fontFamily:"'DM Mono',monospace"}}>{n}</p>
+                          <p style={{margin:0,fontSize:10,color:T.textMuted}}>{l.label}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{background:"rgba(255,77,77,0.07)",border:"1px solid rgba(255,77,77,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:14}}>
+                    <p style={{margin:0,fontSize:12,color:"#FF7A7A"}}>⚠ This will replace all current tasks. This cannot be undone.</p>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setImportResult(null)} style={{flex:1,padding:"12px",borderRadius:12,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                    <button onClick={confirmImport} style={{flex:2,padding:"12px",borderRadius:12,border:"none",background:"#4CAF50",color:"#000",fontSize:13,fontWeight:700,cursor:"pointer"}}>✓ Import & Replace</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App(){
   const prefersDark=typeof window!=="undefined"&&window.matchMedia("(prefers-color-scheme: dark)").matches;
   const [themeName,setThemeName]=useState(prefersDark?"dark":"light");
@@ -2175,6 +2422,7 @@ export default function App(){
   const T=theme;
 
   const [user,setUser]=useState(null);
+  const [showData,setShowData]=useState(false);
   const [tab,setTab]=useState("capture");
   const [tasks,setTasks]=useState(SEED_TASKS);
   const [approvals,setApprovals]=useState([]);
@@ -2182,6 +2430,32 @@ export default function App(){
   const [holidays,setHolidays]=useState(SEED_HOLIDAYS);
   const [bucket,setBucket]=useState(SEED_BUCKET);
   const [qc,setQc]=useState(SEED_QC);
+
+  // ── Supabase load + realtime ──────────────────────────────────────────────
+  const loadFromDB = useCallback(async () => {
+    if (!supabase) return;
+    const [{ data: tData }, { data: aData }, { data: cData }] = await Promise.all([
+      supabase.from('tasks').select('*').order('created_at'),
+      supabase.from('approvals').select('*').order('approved_at', { ascending: false }),
+      supabase.from('quick_capture').select('*').order('created_at', { ascending: false }),
+    ]);
+    if (tData) setTasks(tData.map(rowToTask));
+    if (aData) setApprovals(aData.map(rowToApproval));
+    if (cData) setQc(cData.map(rowToCapture));
+  }, []);
+
+  useEffect(() => { loadFromDB(); }, [loadFromDB]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const ch = supabase.channel('workos-rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'tasks'},loadFromDB)
+      .on('postgres_changes',{event:'*',schema:'public',table:'approvals'},loadFromDB)
+      .on('postgres_changes',{event:'*',schema:'public',table:'quick_capture'},loadFromDB)
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [loadFromDB]);
+
   const [dailyLog,setDailyLog]=useState(SEED_DAILY);
   const [toast,setToast]=useState(null);
   const [todoFilter,setTodoFilter]=useState("all");
@@ -2236,12 +2510,14 @@ export default function App(){
     const task={id:uid(),list:a.fromList,text:a.text,update:(a.update||"")+" [Sent back]",delegate:a.delegate||"",status:"in-progress",bci:"schedule",starred:false,followUp:false,nextFollowUp:"",day:"",time:"",followUpCount:0,createdAt:new Date().toISOString(),batch:"meetings"};
     setApprovals(prev=>prev.filter(x=>x.id!==id));setTasks(prev=>[task,...prev]);fire("Sent back ↩");
   };
-  const addQC=text=>setQc(prev=>[{id:uid(),text,ts:Date.now()},...prev]);
-  const delQC=id=>setQc(prev=>prev.filter(i=>i.id!==id));
+  const addQC=text=>{const item={id:uid(),text,ts:Date.now()};setQc(prev=>[item,...prev]);dbSync.addCapture(item);};
+  const delQC=id=>{setQc(prev=>prev.filter(i=>i.id!==id));dbSync.deleteCapture(id);};
   const routeQC=(item,list,del)=>{
     delQC(item.id);
     const task={id:uid(),list,text:item.text,update:"",delegate:del||"",status:"todo",bci:"schedule",starred:false,followUp:false,nextFollowUp:"",day:"",time:"",followUpCount:0,createdAt:new Date().toISOString(),batch:"meetings"};
-    setTasks(prev=>[task,...prev]);fire(`Added to ${list==="todo"?"My Tasks":list==="ea"?"EA List":"Delegation"}`);
+    setTasks(prev=>[task,...prev]);
+    dbSync.upsertTask(task);
+    fire(`Added to ${list==="todo"?"My Tasks":list==="ea"?"EA List":"Delegation"}`);
   };
 
   const applyFilter=(items,f)=>{
@@ -2297,6 +2573,7 @@ export default function App(){
           }
         `}</style>
 
+        {showData&&R.approve&&<DataPanel tasks={tasks} setTasks={setTasks} onClose={()=>setShowData(false)}/>}
         {toast&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",background:T.modalBg,border:`1px solid ${T.modalBorder}`,borderRadius:20,padding:"10px 20px",fontSize:13,color:T.text,zIndex:999,boxShadow:"0 8px 32px rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>{toast}</div>}
 
         {/* DESKTOP SIDEBAR */}
@@ -2305,7 +2582,12 @@ export default function App(){
             <p style={{margin:0,fontSize:9,color:"#F5A623",fontFamily:"'DM Mono',monospace",letterSpacing:2.5,textTransform:"uppercase"}}>Work OS</p>
             <p style={{margin:"2px 0 0",fontSize:18,fontWeight:600,color:T.textHeading}}>Task Manager</p>
           </div>
-          <div style={{padding:"0 12px 20px"}}><ThemeToggle theme={theme} setThemeName={setThemeName}/></div>
+          <div style={{padding:"0 12px 12px"}}><ThemeToggle theme={theme} setThemeName={setThemeName}/></div>
+          {R.approve&&<div style={{padding:"0 12px 8px"}}>
+            <button onClick={()=>setShowData(true)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${T.border}`,background:T.bgPanel,color:T.textSub,fontSize:11,cursor:"pointer",fontFamily:"'DM Mono',monospace",display:"flex",alignItems:"center",gap:8}}>
+              <span>📊</span><span>Export / Import</span>
+            </button>
+          </div>}
           <div style={{margin:"0 12px 20px",padding:"10px 12px",background:`${user.color}0A`,border:`1px solid ${user.color}25`,borderRadius:12,display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:32,height:32,borderRadius:"50%",background:`${user.color}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:user.color,flexShrink:0}}>{user.avatar}</div>
             <div>
@@ -2342,7 +2624,8 @@ export default function App(){
                 <div style={{width:22,height:22,borderRadius:"50%",background:`${user.color}25`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:user.color}}>{user.avatar}</div>
                 <p style={{margin:0,fontSize:12,fontWeight:600,color:T.textHeading}}>{user.name}</p>
               </div>
-              <button onClick={()=>setUser(null)} style={{background:T.btnSecBg,border:`1px solid ${T.btnSecBorder}`,borderRadius:20,padding:"6px 10px",color:T.btnSecText,fontSize:11,cursor:"pointer"}}>Out</button>
+              {R.approve&&<button onClick={()=>setShowData(true)} style={{background:T.bgPanel,border:`1px solid ${T.border}`,borderRadius:20,padding:"6px 10px",color:T.textSub,fontSize:13,cursor:"pointer"}}>📊</button>}
+            <button onClick={()=>setUser(null)} style={{background:T.btnSecBg,border:`1px solid ${T.btnSecBorder}`,borderRadius:20,padding:"6px 10px",color:T.btnSecText,fontSize:11,cursor:"pointer"}}>Out</button>
             </div>
           </div>
           <div style={{display:"flex",gap:6,marginTop:14}}>
