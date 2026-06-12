@@ -50,8 +50,8 @@ const useT=()=>useContext(ThemeCtx);
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const USERS={
-  payas: {id:"payas",name:"Payas",pin:"1234",role:"Owner",avatar:"P",color:"#F5A623",tabs:["inbox","myday","ea","del","approvals","recurring"],rights:{todo:true,ea:true,del:true,approvals:true,capture:true,transfer:true,delete:true,star:true,approve:true,schedule:true,life:true,recurring:true}},
-  varsha:{id:"varsha",name:"Varsha",pin:"5678",role:"EA",avatar:"V",color:"#4A9EFF",tabs:["ea","del","recurring"],rights:{todo:false,ea:true,del:true,approvals:false,capture:false,transfer:false,delete:false,star:false,approve:false,schedule:false,recurring:true}},
+  payas: {id:"payas",name:"Payas",pin:process.env.REACT_APP_PIN_PAYAS||"1234",role:"Owner",avatar:"P",color:"#F5A623",tabs:["inbox","myday","ea","del","approvals","recurring"],rights:{todo:true,ea:true,del:true,approvals:true,capture:true,transfer:true,delete:true,star:true,approve:true,schedule:true,life:true,recurring:true}},
+  varsha:{id:"varsha",name:"Varsha",pin:process.env.REACT_APP_PIN_VARSHA||"5678",role:"EA",avatar:"V",color:"#4A9EFF",tabs:["ea","del","recurring"],rights:{todo:false,ea:true,del:true,approvals:false,capture:false,transfer:false,delete:false,star:false,approve:false,schedule:false,recurring:true}},
 };
 const TODO_STATUS={schedule:{label:"Scheduled",color:"#4A9EFF",bg:"rgba(74,158,255,0.13)"},waiting:{label:"Waiting",color:"#9B8AFF",bg:"rgba(155,138,255,0.13)"},someday:{label:"Someday",color:"#50C8A8",bg:"rgba(80,200,168,0.13)"},done:{label:"Done ✓",color:"#4CAF50",bg:"rgba(76,175,80,0.13)"}};
 const EA_STATUS={todo:{label:"To Do",color:"#888",bg:"rgba(136,136,136,0.12)"},"in-progress":{label:"In Progress",color:"#4A9EFF",bg:"rgba(74,158,255,0.13)"},scheduled:{label:"Scheduled",color:"#50C8A8",bg:"rgba(80,200,168,0.13)"},waiting:{label:"Waiting",color:"#9B8AFF",bg:"rgba(155,138,255,0.13)"},done:{label:"Done ✓",color:"#4CAF50",bg:"rgba(76,175,80,0.13)"}};
@@ -1600,10 +1600,9 @@ function LifePlanner({unwindItemsProp,setUnwindItemsProp,holidaysProp,setHoliday
 
 
 // ─── MY DAY TAB (Work Tasks + Life Planner combined) ─────────────────────────
-function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,updateTask,transferTask,deleteTask,R,emptyState,unwindItems,setUnwindItems,holidays,setHolidays,bucket,setBucket}){
+function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,updateTask,transferTask,deleteTask,R,emptyState,unwindItems,setUnwindItems,holidays,setHolidays,bucket,setBucket,onAddTask}){
   const T=useT();
   const [lifeOpen,setLifeOpen]=useState(true);
-  const [goalsOpen,setGoalsOpen]=useState(false);
 
   // ── Unwind progress ──
   const totalDone=unwindItems.reduce((a,i)=>a+(i.done||0),0);
@@ -1618,6 +1617,8 @@ function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,upd
   const [resetConfirm,setResetConfirm]=useState(false);
   const [editHol,setEditHol]=useState(null);
   const [newBucket,setNewBucket]=useState("");
+  const [holOpen,setHolOpen]=useState(true);
+  const [bucketOpen,setBucketOpen]=useState(true);
 
   const tagColor=(map,key)=>map[key]||"#888";
 
@@ -1700,9 +1701,22 @@ function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,upd
     return(
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"flex-end"}}>
         <div style={{width:"100%",maxWidth:600,margin:"0 auto",background:T.modalBg,borderRadius:"20px 20px 0 0",padding:"22px 20px 44px",border:`1px solid ${T.modalBorder}`}}>
-          <p style={{margin:"0 0 4px",fontSize:10,color:T.textMuted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1}}>Holiday — {item.month}</p>
-          <input value={form.plan} onChange={e=>setForm(p=>({...p,plan:e.target.value}))} placeholder="Plan / destination…"
-            style={{width:"100%",background:T.bgInput,border:`1px solid ${T.borderInput}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,boxSizing:"border-box",marginBottom:10}}/>
+          <p style={{margin:"0 0 12px",fontSize:10,color:T.textMuted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1}}>Edit Holiday</p>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <div style={{flex:"0 0 auto"}}>
+              <p style={{margin:"0 0 4px",fontSize:10,color:T.textMuted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>Month</p>
+              <select value={form.month||""} onChange={e=>setForm(p=>({...p,month:e.target.value}))}
+                style={{background:T.bgInput,border:`1px solid ${T.borderInput}`,borderRadius:10,padding:"10px 12px",color:form.month?T.text:T.textMuted,fontSize:13,cursor:"pointer",minWidth:80}}>
+                <option value="">Pick</option>
+                {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map(m=><option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div style={{flex:1}}>
+              <p style={{margin:"0 0 4px",fontSize:10,color:T.textMuted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>Plan / Destination</p>
+              <input value={form.plan} onChange={e=>setForm(p=>({...p,plan:e.target.value}))} placeholder="e.g. Japan ski, Goa beach…"
+                style={{width:"100%",background:T.bgInput,border:`1px solid ${T.borderInput}`,borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,boxSizing:"border-box"}}/>
+            </div>
+          </div>
           <div style={{marginBottom:10}}>
             <p style={{margin:"0 0 6px",fontSize:10,color:T.textMuted,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>Type</p>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
@@ -1750,6 +1764,29 @@ function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,upd
       {editUnwind&&<UnwindEditModal item={editUnwind} onSave={form=>{setUnwindItems(prev=>prev.map(i=>i.id===form.id?form:i));setEditUnwind(null);}} onClose={()=>setEditUnwind(null)}/>}
       {addingUnwind&&<UnwindEditModal item={{id:uid(),text:"",target:1,unit:"sessions/week",category:"Sport",people:"Solo",done:0,color:"#50C8A8"}} onSave={form=>{setUnwindItems(prev=>[...prev,form]);setAddingUnwind(false);}} onClose={()=>setAddingUnwind(false)}/>}
       {editHol&&<HolEditModal item={editHol} onSave={form=>{setHolidays(prev=>prev.map(h=>h.id===form.id?form:h));setEditHol(null);}} onClose={()=>setEditHol(null)}/>}
+
+      {/* ── DAILY REMINDERS STRIP ── */}
+      <div style={{padding:"14px 16px 0"}}>
+        <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+          {[
+            {icon:"📖",label:"Read",color:"#4A9EFF"},
+            {icon:"🧠",label:"Learn",color:"#9B8AFF"},
+            {icon:"🔨",label:"Build",color:"#F5A623"},
+            {icon:"💰",label:"Earn",color:"#4CAF50"},
+            {icon:"🤲",label:"Give",color:"#50C8A8"},
+          ].map(r=>(
+            <div key={r.label} style={{flexShrink:0,display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:20,background:`${r.color}10`,border:`1px solid ${r.color}25`}}>
+              <span style={{fontSize:15}}>{r.icon}</span>
+              <span style={{fontSize:11,fontWeight:600,color:r.color,fontFamily:"'DM Mono',monospace"}}>{r.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── QUICK ADD TO MY DAY ── */}
+      <div style={{padding:"10px 16px 4px"}}>
+        <QuickAddTask onAdd={onAddTask}/>
+      </div>
 
       {/* ── SECTION 1: WORK TASKS ── */}
       <div style={{padding:"0 16px"}}>
@@ -1842,67 +1879,91 @@ function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,upd
         )}
       </div>
 
-      {/* ── SECTION 3: LIFE GOALS (collapsed by default) ── */}
-      <div style={{padding:"0 16px",paddingBottom:20}}>
-        <button onClick={()=>setGoalsOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"16px 0 10px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <p style={{margin:0,fontSize:10,color:"#9B8AFF",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1.5}}>✨ Life Goals</p>
-            <div style={{display:"flex",gap:5}}>
-              <span style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:"rgba(245,166,35,0.1)",color:"#F5A623",fontFamily:"'DM Mono',monospace"}}>✈️ {doneHols}/4</span>
-              <span style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:"rgba(155,138,255,0.1)",color:"#9B8AFF",fontFamily:"'DM Mono',monospace"}}>⭐ {bucketDone}/{bucket.length}</span>
-            </div>
+      {/* ── DIVIDER ── */}
+      <div style={{margin:"20px 16px 0",height:1,background:T.borderSub}}/>
+
+      {/* ── SECTION 3: HOLIDAYS ── */}
+      <div style={{padding:"0 16px"}}>
+        <button onClick={()=>setHolOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"16px 0 10px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <p style={{margin:0,fontSize:10,color:"#F5A623",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1.5}}>✈️ Holidays</p>
+            <span style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:doneHols>=4?"rgba(76,175,80,0.12)":"rgba(245,166,35,0.1)",color:doneHols>=4?"#4CAF50":"#F5A623",fontFamily:"'DM Mono',monospace"}}>{doneHols}/4 done</span>
           </div>
-          <span style={{fontSize:13,color:T.textMuted}}>{goalsOpen?"▲":"▼"}</span>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={e=>{e.stopPropagation();const newH={id:uid(),month:"",plan:"",type:"adventure",people:"Family",status:"empty",notes:""};setHolidays(prev=>[...prev,newH]);setEditHol(newH);}} style={{fontSize:11,padding:"4px 12px",borderRadius:20,border:"1px solid rgba(245,166,35,0.3)",background:"rgba(245,166,35,0.08)",color:"#F5A623",cursor:"pointer",fontFamily:"'DM Mono',monospace"}}>+ Add</button>
+            <span style={{fontSize:13,color:"#555"}}>{holOpen?"▲":"▼"}</span>
+          </div>
         </button>
-
-        {goalsOpen&&(
-          <div>
-            {/* Holidays mini list */}
-            <p style={{margin:"0 0 8px",fontSize:10,color:"#F5A623",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1}}>✈️ Holidays — goal 4x/year</p>
-            <div style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden",marginBottom:14}}>
-              {holidays.map((h,i)=>{
-                const ht=HOLIDAY_TYPES[h.type]||HOLIDAY_TYPES.adventure;
-                const isEmpty=!h.plan;
-                return(
-                  <div key={h.id} onClick={()=>setEditHol(h)} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<holidays.length-1?`1px solid ${T.borderSub}`:"none",cursor:"pointer"}}>
-                    <span style={{fontSize:11,color:T.textMuted,fontFamily:"'DM Mono',monospace",minWidth:26,flexShrink:0}}>{h.month}</span>
-                    <span style={{fontSize:14,flexShrink:0}}>{ht.icon}</span>
-                    <p style={{margin:0,fontSize:12,color:isEmpty?T.textDim:h.status==="done"?T.textMuted:T.text,flex:1,fontStyle:isEmpty?"italic":"normal",textDecoration:h.status==="done"?"line-through":"none"}}>{isEmpty?"Tap to plan…":h.plan}</p>
-                    {!isEmpty&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:h.status==="done"?"rgba(76,175,80,0.12)":"rgba(74,158,255,0.12)",color:h.status==="done"?"#4CAF50":"#4A9EFF",fontFamily:"'DM Mono',monospace",flexShrink:0}}>{h.status==="done"?"✓":h.status==="planned"?"Planned":"TBD"}</span>}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Bucket list mini */}
-            <p style={{margin:"0 0 8px",fontSize:10,color:"#9B8AFF",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1}}>⭐ Bucket List</p>
-            <div style={{display:"flex",gap:8,marginBottom:10}}>
-              <input value={newBucket} onChange={e=>setNewBucket(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newBucket.trim()){setBucket(prev=>[{id:uid(),text:newBucket.trim(),category:"adventure",priority:"someday",done:false},...prev]);setNewBucket("");}}}
-                placeholder="Add to bucket list…"
-                style={{flex:1,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:12}}/>
-              <button onClick={()=>{if(newBucket.trim()){setBucket(prev=>[{id:uid(),text:newBucket.trim(),category:"adventure",priority:"someday",done:false},...prev]);setNewBucket("");}}}
-                style={{background:"#9B8AFF",border:"none",borderRadius:10,padding:"9px 14px",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer"}}>+</button>
-            </div>
-            {bucket.filter(b=>!b.done).map(b=>(
-              <div key={b.id} style={{display:"flex",gap:9,alignItems:"center",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px",marginBottom:6}}>
-                <button onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,done:true}:x))} style={{width:20,height:20,borderRadius:"50%",border:`1.5px solid ${T.textMuted}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}/>
-                <p style={{margin:0,fontSize:12,color:T.text,flex:1}}>{b.text}</p>
-                <span style={{fontSize:9,padding:"1px 6px",borderRadius:10,background:b.priority==="2025"?"rgba(245,166,35,0.12)":T.bgPanel,color:b.priority==="2025"?"#F5A623":T.textMuted,fontFamily:"'DM Mono',monospace",cursor:"pointer"}} onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,priority:x.priority==="2025"?"someday":"2025"}:x))}>{b.priority==="2025"?"2025":"someday"}</span>
-                <button onClick={()=>setBucket(prev=>prev.filter(x=>x.id!==b.id))} style={{background:"none",border:"none",color:T.textDim,fontSize:13,cursor:"pointer"}}>✕</button>
+        {holOpen&&holidays.map((h,i)=>{
+          const ht=HOLIDAY_TYPES[h.type]||HOLIDAY_TYPES.adventure;
+          const isEmpty=!h.plan;
+          return(
+            <div key={h.id} style={{background:isEmpty?T.bgPanel:T.bgCard,border:`1px solid ${isEmpty?T.borderSub:T.border}`,borderLeft:`3px solid ${isEmpty?T.textDim:ht.color}`,borderRadius:12,marginBottom:8,padding:"10px 13px",display:"flex",gap:10,alignItems:"center"}}>
+              <span style={{fontSize:18,flexShrink:0}}>{ht.icon}</span>
+              <div style={{flex:1,cursor:"pointer",minWidth:0}} onClick={()=>setEditHol(h)}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  {h.month&&<span style={{fontSize:10,color:"#F5A623",fontFamily:"'DM Mono',monospace",fontWeight:600,flexShrink:0}}>{h.month}</span>}
+                  <p style={{margin:0,fontSize:13,color:isEmpty?T.textDim:h.status==="done"?T.textMuted:T.text,textDecoration:h.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isEmpty?"Tap to plan…":h.plan}</p>
+                </div>
+                <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap"}}>
+                  <span style={{fontSize:9,padding:"1px 6px",borderRadius:10,background:`${ht.color}14`,color:ht.color,fontFamily:"'DM Mono',monospace"}}>{ht.label}</span>
+                  {h.people&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:10,background:T.bgPanel,color:T.textMuted,fontFamily:"'DM Mono',monospace"}}>{h.people}</span>}
+                  {!isEmpty&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:10,background:h.status==="done"?"rgba(76,175,80,0.12)":h.status==="planned"?"rgba(74,158,255,0.12)":T.bgPanel,color:h.status==="done"?"#4CAF50":h.status==="planned"?"#4A9EFF":T.textMuted,fontFamily:"'DM Mono',monospace"}}>{h.status==="done"?"✓ Done":h.status==="planned"?"Planned":"TBD"}</span>}
+                  {h.notes&&<span style={{fontSize:9,color:T.textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{h.notes}</span>}
+                </div>
               </div>
-            ))}
-            {bucket.filter(b=>b.done).length>0&&(
-              <p style={{margin:"8px 0 4px",fontSize:9,color:"#4CAF50",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1}}>✓ Done</p>
-            )}
-            {bucket.filter(b=>b.done).map(b=>(
-              <div key={b.id} style={{display:"flex",gap:9,alignItems:"center",background:T.bgPanel,border:`1px solid ${T.borderSub}`,borderRadius:10,padding:"8px 12px",marginBottom:5,opacity:0.5}}>
-                <span style={{fontSize:12,color:"#4CAF50"}}>✓</span>
-                <p style={{margin:0,fontSize:12,color:T.textMuted,flex:1,textDecoration:"line-through"}}>{b.text}</p>
-                <button onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,done:false}:x))} style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer"}}>undo</button>
-              </div>
-            ))}
+              <button onClick={()=>setHolidays(prev=>prev.filter(x=>x.id!==h.id))} style={{width:24,height:24,borderRadius:6,border:"1px solid rgba(255,77,77,0.2)",background:"rgba(255,77,77,0.06)",color:"#FF7A7A",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── DIVIDER ── */}
+      <div style={{margin:"20px 16px 0",height:1,background:T.borderSub}}/>
+
+      {/* ── SECTION 4: BUCKET LIST ── */}
+      <div style={{padding:"0 16px",paddingBottom:24}}>
+        <button onClick={()=>setBucketOpen(o=>!o)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",cursor:"pointer",padding:"16px 0 10px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <p style={{margin:0,fontSize:10,color:"#9B8AFF",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1.5}}>⭐ Bucket List</p>
+            <span style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:"rgba(155,138,255,0.1)",color:"#9B8AFF",fontFamily:"'DM Mono',monospace"}}>{bucketDone}/{bucket.length} done</span>
           </div>
+          <span style={{fontSize:13,color:"#555"}}>{bucketOpen?"▲":"▼"}</span>
+        </button>
+        {bucketOpen&&<div style={{display:"flex",gap:8,marginBottom:12}}>
+          <input value={newBucket} onChange={e=>setNewBucket(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&newBucket.trim()){setBucket(prev=>[{id:uid(),text:newBucket.trim(),category:"adventure",priority:"someday",done:false},...prev]);setNewBucket("");}}}
+            placeholder="Add something to your bucket list…"
+            style={{flex:1,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13}}/>
+          <button onClick={()=>{if(newBucket.trim()){setBucket(prev=>[{id:uid(),text:newBucket.trim(),category:"adventure",priority:"someday",done:false},...prev]);setNewBucket("");}}}
+            style={{background:"#9B8AFF",border:"none",borderRadius:10,padding:"9px 16px",color:"#fff",fontWeight:700,fontSize:16,cursor:"pointer"}}>+</button>
+        </div>
+        {bucket.filter(b=>!b.done).map(b=>(
+          <div key={b.id} style={{display:"flex",gap:9,alignItems:"center",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:11,padding:"10px 12px",marginBottom:7}}>
+            <button onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,done:true}:x))}
+              style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${T.textMuted}`,background:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}/>
+            <p style={{margin:0,fontSize:13,color:T.text,flex:1}}>{b.text}</p>
+            <button onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,priority:x.priority==="2025"?"someday":"2025"}:x))}
+              style={{fontSize:9,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`,background:b.priority==="2025"?"rgba(245,166,35,0.12)":T.bgPanel,color:b.priority==="2025"?"#F5A623":T.textMuted,fontFamily:"'DM Mono',monospace",cursor:"pointer",flexShrink:0}}>
+              {b.priority==="2025"?"🎯 2025":"💭 Someday"}
+            </button>
+            <button onClick={()=>setBucket(prev=>prev.filter(x=>x.id!==b.id))}
+              style={{width:22,height:22,borderRadius:6,border:"1px solid rgba(255,77,77,0.2)",background:"rgba(255,77,77,0.06)",color:"#FF7A7A",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+          </div>
+        ))}
+        {bucket.filter(b=>b.done).length>0&&(
+          <>
+            <p style={{margin:"10px 0 6px",fontSize:9,color:"#4CAF50",fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:1}}>✓ Completed</p>
+            {bucket.filter(b=>b.done).map(b=>(
+              <div key={b.id} style={{display:"flex",gap:9,alignItems:"center",background:T.bgPanel,border:`1px solid ${T.borderSub}`,borderRadius:10,padding:"8px 12px",marginBottom:5,opacity:0.55}}>
+                <span style={{fontSize:13,color:"#4CAF50"}}>✓</span>
+                <p style={{margin:0,fontSize:12,color:T.textMuted,flex:1,textDecoration:"line-through"}}>{b.text}</p>
+                <button onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,done:false}:x))} style={{background:"none",border:"none",color:T.textMuted,fontSize:11,cursor:"pointer"}}>undo</button>
+              </div>
+            ))}
+          </>
         )}
+        </div>}
       </div>
     </div>
   );
@@ -2504,6 +2565,10 @@ export default function App(){
     const task={id:uid(),list,text:item.text,update:"",delegate:del||"",status:"todo",bci:"schedule",starred:false,followUp:false,nextFollowUp:"",day:"",time:"",followUpCount:0,createdAt:new Date().toISOString(),batch:"meetings"};
     setTasks(prev=>[task,...prev]);
     dbSync.upsertTask(task);
+    // Navigate to destination tab so user can see the added task
+    if(list==="todo") setTab("myday");
+    else if(list==="ea") setTab("ea");
+    else if(list==="del") setTab("del");
     fire(`Added to ${list==="todo"?"My Tasks":list==="ea"?"EA List":"Delegation"}`);
   };
 
@@ -2645,6 +2710,11 @@ export default function App(){
                 unwindItems={unwindItems} setUnwindItems={setUnwindItems}
                 holidays={holidays} setHolidays={setHolidays}
                 bucket={bucket} setBucket={setBucket}
+                onAddTask={(text,bci)=>{
+                  const task={id:uid(),list:"todo",text,update:"",delegate:"",status:"todo",bci:bci||"schedule",starred:false,followUp:false,nextFollowUp:"",day:"",time:"",followUpCount:0,createdAt:new Date().toISOString()};
+                  setTasks(prev=>[task,...prev]);
+                  dbSync.upsertTask(task);
+                }}
               />
             )}
 
