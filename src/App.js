@@ -1599,6 +1599,37 @@ function LifePlanner({unwindItemsProp,setUnwindItemsProp,holidaysProp,setHoliday
 }
 
 
+// ─── QUICK ADD TASK ───────────────────────────────────────────────────────────
+function QuickAddTask({onAdd}){
+  const T=useT();
+  const [text,setText]=useState("");
+  const [bci,setBci]=useState("schedule");
+  const [expanded,setExpanded]=useState(false);
+  const submit=()=>{
+    if(!text.trim())return;
+    onAdd(text.trim(),bci);
+    setText("");setBci("schedule");setExpanded(false);
+  };
+  return(
+    <div style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:13,overflow:"hidden",marginBottom:4}}>
+      {!expanded?(
+        <button onClick={()=>setExpanded(true)} style={{width:"100%",padding:"10px 14px",background:"transparent",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:10,textAlign:"left"}}>
+          <span style={{fontSize:16,opacity:0.5}}>+</span>
+          <span style={{fontSize:13,color:T.textMuted}}>Quick add to My Tasksu2026</span>
+        </button>
+      ):(
+        <div style={{padding:"12px 14px"}}>
+          <input value={text} onChange={e=>setText(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")submit();if(e.key==="Escape")setExpanded(false);}} placeholder="Task nameu2026" style={{width:"100%",background:T.bgInput,border:`1px solid ${T.borderInput}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13,boxSizing:"border-box",marginBottom:8}}/>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setExpanded(false)} style={{padding:"9px 12px",borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,fontSize:12,cursor:"pointer"}}>Cancel</button>
+            <button onClick={submit} style={{flex:1,padding:"9px",borderRadius:10,border:"none",background:"#F5A623",color:"#000",fontSize:13,fontWeight:700,cursor:"pointer"}}>Add u2192</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MY DAY TAB (Work Tasks + Life Planner combined) ─────────────────────────
 function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,updateTask,transferTask,deleteTask,R,emptyState,unwindItems,setUnwindItems,holidays,setHolidays,bucket,setBucket,onAddTask}){
   const T=useT();
