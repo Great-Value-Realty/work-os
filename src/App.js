@@ -1937,7 +1937,7 @@ function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,upd
             style={{flex:1,background:T.bgInput,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px",color:T.text,fontSize:13}}/>
           <button onClick={()=>{if(newBucket.trim()){setBucket(prev=>[{id:uid(),text:newBucket.trim(),category:"adventure",priority:"someday",done:false},...prev]);setNewBucket("");}}}
             style={{background:"#9B8AFF",border:"none",borderRadius:10,padding:"9px 16px",color:"#fff",fontWeight:700,fontSize:16,cursor:"pointer"}}>+</button>
-        </div>
+        </div>}
         {bucket.filter(b=>!b.done).map(b=>(
           <div key={b.id} style={{display:"flex",gap:9,alignItems:"center",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:11,padding:"10px 12px",marginBottom:7}}>
             <button onClick={()=>setBucket(prev=>prev.map(x=>x.id===b.id?{...x,done:true}:x))}
@@ -1963,7 +1963,6 @@ function MyDayTab({todoItems,todoFilter,setTodoFilter,todoCounts,applyFilter,upd
             ))}
           </>
         )}
-        </div>}
       </div>
     </div>
   );
